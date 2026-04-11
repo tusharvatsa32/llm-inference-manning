@@ -19,7 +19,7 @@ A practitioner book that treats LLM inference as a systems engineering disciplin
 
 ## Repository Structure
 
-Each chapter has its own directory with code examples and diagrams referenced in the text. The `end-to-end-project/` directory contains a progressive inference service that integrates techniques from across the book.
+Each chapter has its own directory with code examples and diagrams referenced in the text.
 
 ```
 llm-inference-manning/
@@ -28,45 +28,13 @@ llm-inference-manning/
 ├── ch02/                    # A Minimal Inference Stack
 │   ├── code/
 │   └── diagrams/
-├── ch03/                    # Decoding and Generation Policies
-│   ├── code/
-│   └── diagrams/
-├── ch04/                    # Scaling Reasoning Without Retraining
-│   ├── code/
-│   └── diagrams/
-├── ch05/                    # GPU Execution Model for Transformer Inference
-│   ├── code/
-│   └── diagrams/
-├── ch06/                    # KV-Cache Architecture and Memory Management
-│   ├── code/
-│   └── diagrams/
-├── ch07/                    # Batching and Cache-Aware Scheduling
-│   ├── code/
-│   └── diagrams/
-├── ch08/                    # Quantization and Memory Compression
-│   ├── code/
-│   └── diagrams/
-├── ch09/                    # Speculative Decoding
-│   ├── code/
-│   └── diagrams/
-├── ch10/                    # Framework Internals: vLLM, SGLang, TensorRT-LLM
-│   ├── code/
-│   └── diagrams/
-├── ch11/                    # Distributed Inference Systems
-│   ├── code/
-│   └── diagrams/
-├── ch12/                    # Performance and Cost Engineering
-│   ├── code/
-│   └── diagrams/
-├── ch13/                    # Building a Production Inference Service
-│   ├── code/
-│   └── diagrams/
-└── end-to-end-project/      # Progressive inference service built across chapters
 ```
+
+More chapters will be added as the book progresses.
 
 ---
 
-## Table of Contents
+## Chapters
 
 ### Part I — Inference as a Systems Discipline
 
@@ -75,6 +43,7 @@ Why inference has replaced training as the primary systems bottleneck. Introduce
 
 **Chapter 2: A Minimal Inference Stack**
 Hands-on chapter. Build a working inference pipeline from scratch using GPT-2: probability foundations, the autoregressive generation loop, temperature sampling, and generation evaluation. Every section includes runnable code and Try It Now exercises.
+
 ---
 
 ## The End-to-End Project
@@ -88,6 +57,7 @@ The book culminates in a progressive inference service built across chapters. St
 
 
 The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
+
 
 ---
 
@@ -106,8 +76,8 @@ cd llm-inference-manning
 
 # Chapter 2 example (CPU, no GPU needed)
 cd ch02/code
-pip install -r requirements.txt
-python autoregressive_loop.py
+pip install torch tiktoken litellm python-dotenv matplotlib numpy
+python -c "from generation import demonstrate_temperature_sampling; demonstrate_temperature_sampling()"
 ```
 
 ---
