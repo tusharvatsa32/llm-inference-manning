@@ -179,6 +179,8 @@ python autoregressive_loop.py
 
 **Karthik Suresh** — Machine Learning Engineer at Adobe (6+ years). Published at ICCV, NeurIPS. Builds and deploys LLMs and VLMs end-to-end for large-scale design applications serving millions of users.
 
+**Ishita Verma** - Senior Machine Learning Engineer at Netflix. Master's from University of Maryland. Published at NAACL, and other top-tier conferences, and authored papers on multimodal and multilingual GenAI systems.
+
 ---
 
 ## License
