@@ -24,7 +24,7 @@ Each chapter has its own directory with code examples and diagrams referenced in
 ```
 llm-inference-manning/
 ├── ch01/                    # Inference Is the New Bottleneck : No Code for this
-│   ├── code/
+│   ├── diagrams/
 ├── ch02/                    # A Minimal Inference Stack
 │   ├── code/
 │   └── diagrams/
