@@ -84,7 +84,7 @@ The book culminates in a progressive inference service built across chapters. St
 | Chapter | What Gets Added |
 |---------|----------------|
 | Ch 1 | Inference is the new Bottleneck |
-| Ch 2 | Minimal autoregressive generation loop |
+| Ch 2 | A Minimal Inference Stack |
 
 
 The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
