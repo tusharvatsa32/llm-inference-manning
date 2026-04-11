@@ -1,6 +1,6 @@
 # Building Fast and Reliable LLM Inference Systems
 
-**A Manning Publications book by Tushar Vatsa and Karthik Suresh**
+**A Manning Publications book by Tushar Vatsa, Karthik Suresh and Ishita Verma**
 
 A practitioner book that treats LLM inference as a systems engineering discipline — covering decoding, memory, batching, speculative execution, and inference-time reasoning for teams building production services under latency and cost constraints.
 
