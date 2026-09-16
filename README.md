@@ -23,12 +23,20 @@ Each chapter has its own directory with code examples and diagrams referenced in
 
 ```
 llm-inference-manning/
-├── ch01/                    # Inference Is the New Bottleneck : No Code for this
-│   ├── diagrams/
-├── ch02/                    # A Minimal Inference Stack
+├── src/mini_inference/       # The educational inference engine, built progressively across chapters
+├── ch01/                     # Inference Is the New Bottleneck
+│   ├── examples/             # Runnable TTFT, TPOT, and prefill/decode experiments
+│   ├── supplementary/        # KV-cache memory calculator (Section 1.3.2)
+│   └── diagrams/
+├── ch02/                     # A Minimal Inference Stack
 │   ├── code/
 │   └── diagrams/
+└── tests/                    # Tests for the living src/mini_inference package
 ```
+
+The chapters build one system rather than carrying independent copies. Reusable code lives in
+`src/mini_inference`, examples import that installed package, and each later chapter extends the
+same continuously tested implementation.
 
 More chapters will be added as the book progresses.
 
@@ -39,7 +47,7 @@ More chapters will be added as the book progresses.
 ### Part I — Inference as a Systems Discipline
 
 **Chapter 1: Inference Is the New Bottleneck**
-Why inference has replaced training as the primary systems bottleneck. Introduces the prefill/decode split, KV cache, and the four interacting constraints (compute, memory capacity, memory bandwidth, scheduling). Defines latency, throughput, and cost as first-class metrics.
+Why inference has replaced training as the primary systems bottleneck. Introduces the prefill/decode split, KV cache, and the four interacting constraints (compute, memory capacity, memory bandwidth, scheduling). Defines latency, throughput, and cost as first-class metrics. Readers build a small profiler that measures TTFT, TPOT, and throughput, then use memory and FLOPs estimates to explain the results. A separate KV-cache calculator requires no model download or GPU.
 
 **Chapter 2: A Minimal Inference Stack**
 Hands-on chapter. Build a working inference pipeline from scratch using GPT-2: probability foundations, the autoregressive generation loop, temperature sampling, and generation evaluation. Every section includes runnable code and Try It Now exercises.
@@ -52,7 +60,7 @@ The book culminates in a progressive inference service built across chapters. St
 
 | Chapter | What Gets Added |
 |---------|----------------|
-| Ch 1 | Inference is the new Bottleneck |
+| Ch 1 | Inference profiling and KV-cache memory sizing |
 | Ch 2 | A Minimal Inference Stack |
 
 
@@ -74,10 +82,18 @@ The final system is representative of modern production inference stacks (vLLM, 
 git clone https://github.com/tusharvatsa32/llm-inference-manning.git
 cd llm-inference-manning
 
+# Chapter 1 calculator (no GPU, model download, or dependencies)
+python3 -m pip install -e .
+python3 ch01/supplementary/kv_cache_memory_calculator.py
+
+# Chapter 1 profiler (downloads and caches a 135M-parameter model on first run)
+python3 -m pip install -e '.[chapter1]'
+python3 ch01/examples/profile_one_request.py
+
 # Chapter 2 example (CPU, no GPU needed)
 cd ch02/code
-pip install torch tiktoken litellm python-dotenv matplotlib numpy
-python -c "from generation import demonstrate_temperature_sampling; demonstrate_temperature_sampling()"
+python3 -m pip install torch tiktoken litellm python-dotenv matplotlib numpy
+python3 -c "from generation import demonstrate_temperature_sampling; demonstrate_temperature_sampling()"
 ```
 
 ---
