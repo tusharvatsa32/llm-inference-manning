@@ -40,3 +40,10 @@ def test_gqa_model_uses_fewer_kv_heads_than_query_heads():
     gqa = ModelShape(num_layers=32, num_heads=32, head_dim=128, num_kv_heads=8)
 
     assert kv_cache_bytes_per_token(gqa) == kv_cache_bytes_per_token(mha) / 4
+
+
+def test_kv_cache_size_scales_with_dtype_bytes():
+    fp16 = kv_cache_bytes_per_token(LLAMA2_7B, dtype_bytes=2)
+    fp32 = kv_cache_bytes_per_token(LLAMA2_7B, dtype_bytes=4)
+
+    assert fp32 == 2 * fp16

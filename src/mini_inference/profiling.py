@@ -1,5 +1,7 @@
 """Small inference measurements and estimates used by the Chapter 1 profiler."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -7,27 +9,25 @@ from dataclasses import dataclass
 class InferenceProfile:
     """Timings for one autoregressive generation request.
 
-    ``prefill_seconds`` includes producing the first output token. Decode time
-    covers only the remaining output tokens, matching the usual TTFT/TPOT split.
+    ``prefill_to_first_token_seconds`` measures model execution from the start
+    of prefill through production of the first output token. It is not
+    end-to-end TTFT because it excludes queueing, scheduling, and serving time.
+    Decode time covers only the remaining output tokens.
     """
 
     prompt_tokens: int
     output_tokens: int
-    prefill_seconds: float
+    prefill_to_first_token_seconds: float
     decode_seconds: float
 
     @property
-    def ttft_seconds(self) -> float:
-        return self.prefill_seconds
-
-    @property
-    def tpot_seconds(self) -> float:
+    def tpot_seconds(self) -> float | None:
         decode_tokens = max(self.output_tokens - 1, 0)
-        return self.decode_seconds / decode_tokens if decode_tokens else 0.0
+        return self.decode_seconds / decode_tokens if decode_tokens else None
 
     @property
     def total_seconds(self) -> float:
-        return self.prefill_seconds + self.decode_seconds
+        return self.prefill_to_first_token_seconds + self.decode_seconds
 
     @property
     def output_tokens_per_second(self) -> float:

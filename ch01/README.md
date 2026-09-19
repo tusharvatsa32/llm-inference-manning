@@ -25,10 +25,11 @@ python3 ch01/examples/profile_one_request.py
 ```
 
 The script runs greedy generation with an explicit cached prefill/decode loop and
-reports model-only TTFT, TPOT, output throughput, estimated KV-cache size, and
-approximate FLOPs. A short unreported warm-up, model loading, and tokenization are
-deliberately excluded from TTFT so repeated experiments compare the inference
-work itself.
+reports prefill-to-first-token latency, TPOT, output throughput, estimated
+KV-cache size, and approximate FLOPs. The first-token measurement covers only
+model execution; it excludes queueing, scheduling, tokenization, and serving
+overhead, so it is not end-to-end TTFT. When only one token is generated, TPOT
+is reported as `N/A` because there is no decode interval to measure.
 
 Then vary one constraint at a time:
 
@@ -42,6 +43,9 @@ Look for three effects: longer prompts primarily increase prefill time, every
 generated token pays decode cost, and the KV cache grows with total sequence
 length. Results vary by hardware and software version; the relationships are
 more important than a benchmark table.
+
+Memory values use decimal units throughout the repository: 1 MB is `10**6`
+bytes and 1 GB is `10**9` bytes.
 
 The examples import measurements, FLOPs estimates, and KV-cache calculations
 from `src/mini_inference`. Chapters 2–4 extend that same package with generation,

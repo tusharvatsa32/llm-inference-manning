@@ -58,8 +58,10 @@ def kv_cache_bytes_for_concurrent_requests(
 
 
 def bytes_to_mb(num_bytes: float) -> float:
+    """Convert bytes to decimal megabytes (1 MB = 10**6 bytes)."""
     return num_bytes / 1e6
 
 
 def bytes_to_gb(num_bytes: float) -> float:
+    """Convert bytes to decimal gigabytes (1 GB = 10**9 bytes)."""
     return num_bytes / 1e9

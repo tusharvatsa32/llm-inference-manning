@@ -55,7 +55,7 @@ def profile_request(model, tokenizer, input_ids, output_tokens: int, device: str
     outputs = model(input_ids=input_ids, attention_mask=attention_mask, use_cache=True)
     next_token = outputs.logits[:, -1:].argmax(dim=-1)
     synchronize(device)
-    prefill_seconds = time.perf_counter() - prefill_start
+    prefill_to_first_token_seconds = time.perf_counter() - prefill_start
 
     generated = [next_token]
     past_key_values = outputs.past_key_values
@@ -88,7 +88,12 @@ def profile_request(model, tokenizer, input_ids, output_tokens: int, device: str
         num_kv_heads=num_kv_heads,
     )
     num_parameters = sum(parameter.numel() for parameter in model.parameters())
-    profile = InferenceProfile(prompt_tokens, output_tokens, prefill_seconds, decode_seconds)
+    profile = InferenceProfile(
+        prompt_tokens=prompt_tokens,
+        output_tokens=output_tokens,
+        prefill_to_first_token_seconds=prefill_to_first_token_seconds,
+        decode_seconds=decode_seconds,
+    )
     return ProfileResult(
         profile=profile,
         prefill_flops=estimate_prefill_flops(

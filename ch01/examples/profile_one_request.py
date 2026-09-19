@@ -2,6 +2,8 @@
 
 import argparse
 
+from mini_inference import bytes_to_mb
+
 from model_runner import best_device, load_model, make_input, profile_request, warm_up
 
 
@@ -19,16 +21,20 @@ def main() -> None:
     input_ids = make_input(tokenizer, args.prompt, args.prompt_tokens, args.device)
     result = profile_request(model, tokenizer, input_ids, args.output_tokens, args.device)
     profile = result.profile
+    tpot = "N/A" if profile.tpot_seconds is None else f"{profile.tpot_seconds * 1_000:.1f} ms/token"
 
-    print(f"device:                 {args.device}")
-    print(f"prompt / output tokens: {profile.prompt_tokens} / {profile.output_tokens}")
-    print(f"TTFT (prefill):          {profile.ttft_seconds * 1_000:.1f} ms")
-    print(f"TPOT (decode):           {profile.tpot_seconds * 1_000:.1f} ms/token")
-    print(f"output throughput:       {profile.output_tokens_per_second:.1f} tokens/s")
-    print(f"estimated KV cache:      {result.kv_cache_bytes / 1e6:.2f} MB")
-    print(f"estimated prefill FLOPs: {result.prefill_flops.total / 1e9:.2f} GFLOPs")
-    print(f"estimated decode FLOPs:  {result.decode_flops.total / 1e9:.2f} GFLOPs")
-    print(f"generated text:          {result.generated_text!r}")
+    print(f"device:                         {args.device}")
+    print(f"prompt / output tokens:         {profile.prompt_tokens} / {profile.output_tokens}")
+    print(
+        "prefill-to-first-token latency: "
+        f"{profile.prefill_to_first_token_seconds * 1_000:.1f} ms"
+    )
+    print(f"TPOT (decode):                   {tpot}")
+    print(f"output throughput:               {profile.output_tokens_per_second:.1f} tokens/s")
+    print(f"estimated KV cache:              {bytes_to_mb(result.kv_cache_bytes):.2f} MB")
+    print(f"estimated prefill FLOPs:         {result.prefill_flops.total / 1e9:.2f} GFLOPs")
+    print(f"estimated decode FLOPs:          {result.decode_flops.total / 1e9:.2f} GFLOPs")
+    print(f"generated text:                  {result.generated_text!r}")
 
 
 if __name__ == "__main__":
