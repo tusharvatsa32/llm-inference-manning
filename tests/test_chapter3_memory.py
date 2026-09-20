@@ -64,18 +64,13 @@ def test_block_table_ref_counting_and_free():
     table_b.append_block(shared_block)
     assert shared_block.ref_count == 2
 
-    released_from_b = table_b.release_all()
-    assert released_from_b == []
+    allocator.free_sequence(table_b)
     assert shared_block.ref_count == 1
     assert table_b.blocks == []
+    assert len(allocator.free_blocks) == free_at_start - 2  # still in use by table_a
 
-    released_from_a = table_a.release_all()
-    assert len(released_from_a) == 2
-    assert all(block.ref_count == 0 for block in released_from_a)
-
-    for block in released_from_a:
-        allocator.free(block)
-
+    allocator.free_sequence(table_a)
+    assert table_a.blocks == []
     assert len(allocator.free_blocks) == free_at_start
 
 
@@ -106,11 +101,10 @@ def test_free_without_prefix_cache_raises_for_a_cached_block():
     block = table.blocks[0]
     prefix_cache.insert_block(list(range(16)), block)
 
-    (freed,) = table.release_all()
     # Forgetting prefix_cache=... here must fail loudly, not silently corrupt
     # the cache -- see test_free_evicts_stale_prefix_cache_entry for the fix.
     try:
-        allocator.free(freed)
+        allocator.free(block)
     except ValueError:
         pass
     else:
@@ -118,11 +112,41 @@ def test_free_without_prefix_cache_raises_for_a_cached_block():
 
     # The rejected call must not have mutated anything: the block is still
     # exactly as it was, so evicting by hand and retrying must now succeed.
-    assert freed.ref_count == 0
-    assert freed not in allocator.free_blocks
-    prefix_cache.evict(freed)
-    allocator.free(freed)
-    assert freed in allocator.free_blocks
+    assert block.ref_count == 1
+    assert block not in allocator.free_blocks
+    prefix_cache.evict(block)
+    allocator.free(block)
+    assert block in allocator.free_blocks
+
+
+def test_free_sequence_is_all_or_nothing():
+    allocator = BlockAllocator(num_blocks=4, block_size=16)
+    prefix_cache = PrefixCache()
+
+    table = allocator.allocate_sequence(num_tokens=32)  # two blocks
+    uncached_block, cached_block = table.blocks
+    prefix_cache.insert_block(list(range(16, 32)), cached_block)
+
+    # One block in the table needs prefix_cache=... and it wasn't given.
+    # free_sequence() must reject the whole call up front rather than
+    # freeing uncached_block and then raising on cached_block -- otherwise
+    # the table would keep a stale reference to a block the pool already
+    # handed to someone else.
+    try:
+        allocator.free_sequence(table)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected free_sequence() to reject a still-cached block")
+
+    assert uncached_block.ref_count == 1
+    assert uncached_block not in allocator.free_blocks
+    assert table.blocks == [uncached_block, cached_block]
+
+    allocator.free_sequence(table, prefix_cache=prefix_cache)
+    assert table.blocks == []
+    assert uncached_block in allocator.free_blocks
+    assert cached_block in allocator.free_blocks
 
 
 def test_free_evicts_stale_prefix_cache_entry():
@@ -134,8 +158,7 @@ def test_free_evicts_stale_prefix_cache_entry():
     block_hash = prefix_cache.insert_block(list(range(16)), block)
     assert block_hash in prefix_cache.cached_blocks
 
-    for freed in table.release_all():
-        allocator.free(freed, prefix_cache=prefix_cache)
+    allocator.free_sequence(table, prefix_cache=prefix_cache)
 
     # The freed block must no longer be reachable through the prefix cache --
     # otherwise a later request could get a "hit" on a block now owned by,

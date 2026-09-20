@@ -1,15 +1,10 @@
 """PagedAttention block allocation (Chapter 3, Section 3.3).
 
-Ownership model used throughout this module: `Block.ref_count` counts how many
-`BlockTable`s currently point at that physical block.
-
-- `BlockAllocator.allocate()` mints a block with `ref_count = 1`: the caller is
-  its sole owner. Building a private sequence (`allocate_sequence`,
-  `append_token`) attaches these freshly minted blocks straight into a
-  table's block list, since that "1" already accounts for the new owner.
-- `BlockTable.append_block()` is for the sharing path: attaching a block that
-  some other table already owns (for example, a prefix-cache hit), which
-  makes this table an additional owner and bumps `ref_count`.
+`Block.ref_count` counts how many BlockTables currently point at that block.
+`allocate()` hands out a block with ref_count = 1 (the caller is its only
+owner). A second table can become a co-owner of the same block via
+`BlockTable.append_block()`, which bumps ref_count -- that's how prefix-cache
+sharing (Section 3.5) and copy-on-write work.
 """
 
 import collections
@@ -39,6 +34,21 @@ class Block:
         self.hash_key = None
 
 
+def _needs_prefix_cache_to_free(block: Block) -> bool:
+    """True if freeing `block` right now would be its last reference while
+    it's still registered in a PrefixCache -- i.e. free() needs a
+    `prefix_cache` to evict it with, or it will raise.
+    """
+    return block.ref_count == 1 and block.hash_key is not None
+
+
+def _prefix_cache_error(block: Block) -> str:
+    return (
+        f"block {block.block_id} is still registered in a PrefixCache -- "
+        "pass prefix_cache=... to evict it, or evict it yourself first"
+    )
+
+
 class BlockTable:
     """The logical sequence of physical blocks assigned to one request."""
 
@@ -47,18 +57,9 @@ class BlockTable:
         self.blocks: list[Block] = []
 
     def append_block(self, block: Block) -> None:
+        """Attach a block this table doesn't already own, becoming a co-owner."""
         self.blocks.append(block)
         block.ref_count += 1
-
-    def release_all(self) -> list[Block]:
-        """Decrement ref_count on every tracked block, returning those that hit zero."""
-        freed = []
-        for block in self.blocks:
-            block.ref_count -= 1
-            if block.ref_count == 0:
-                freed.append(block)
-        self.blocks = []
-        return freed
 
     def get_physical_block_ids(self) -> list[int]:
         return [block.block_id for block in self.blocks]
@@ -85,42 +86,43 @@ class BlockAllocator:
         return block
 
     def free(self, block: Block, prefix_cache=None) -> None:
-        """Release one reference to `block`, reclaiming it once ref_count hits zero.
+        """Release one reference to `block`.
 
-        Safe to call on a block `BlockTable.release_all()` already decremented
-        to zero (the reclaim step for those blocks) as well as on a live block
-        (the normal single-owner free). Calling it twice on the same already-free
-        block is a no-op rather than a double-free.
+        Once ref_count reaches zero, the block is reset and returned to the
+        pool. Freeing an already-free block is a no-op, not a double-free.
 
-        If `block.hash_key` is set, it is registered in some `PrefixCache`, and
-        `prefix_cache` must be passed so the stale entry is evicted before the
-        block is recycled -- otherwise a later request could get a cache "hit"
-        pointing at a block that has since been handed out to someone else. This
-        check runs, and can raise, before anything is mutated, so a caller that
-        catches the error and evicts the block itself can safely call free()
-        again with the exact same arguments.
+        If `block` is registered in a PrefixCache (its hash_key is set),
+        pass that cache as `prefix_cache` so the stale entry is evicted
+        before the block is reused -- otherwise a later request could get a
+        cache "hit" pointing at a block someone else now owns.
         """
-        # free_blocks is the single source of truth for "already free" -- an
-        # identity scan here is O(pool size), which is fine for a teaching-scale
-        # pool and avoids keeping a second collection in sync with it.
-        if any(existing is block for existing in self.free_blocks):
+        if block.ref_count == 0:
             return
+        if _needs_prefix_cache_to_free(block) and prefix_cache is None:
+            raise ValueError(_prefix_cache_error(block))
 
-        would_reach_zero = block.ref_count <= 1
-        if would_reach_zero and block.hash_key is not None and prefix_cache is None:
-            raise ValueError(
-                f"block {block.block_id} is still registered in a PrefixCache "
-                "(hash_key is set) -- call free(block, prefix_cache=...) so the "
-                "stale entry is evicted, or evict it yourself first"
-            )
-
-        if block.ref_count > 0:
-            block.ref_count -= 1
+        block.ref_count -= 1
         if block.ref_count == 0:
             if block.hash_key is not None:
                 prefix_cache.evict(block)
             block.reset()
             self.free_blocks.append(block)
+
+    def free_sequence(self, block_table: BlockTable, prefix_cache=None) -> None:
+        """Release every block a finished request's table owns.
+
+        Checks every block up front when `prefix_cache` is omitted, so this
+        either frees the whole table or raises without freeing any of it --
+        never half of it.
+        """
+        if prefix_cache is None:
+            for block in block_table.blocks:
+                if _needs_prefix_cache_to_free(block):
+                    raise ValueError(_prefix_cache_error(block))
+
+        for block in block_table.blocks:
+            self.free(block, prefix_cache=prefix_cache)
+        block_table.blocks = []
 
     def allocate_sequence(self, num_tokens: int) -> BlockTable:
         num_blocks_needed = math.ceil(num_tokens / self.block_size)
@@ -135,8 +137,8 @@ class BlockAllocator:
 
     def append_token(self, block_table: BlockTable) -> Block | None:
         """Append one token's slot, allocating a new block if the tail is full
-        or shared (ref_count > 1, meaning writing into it would corrupt another
-        request's cache and a copy-on-write is required).
+        or shared (ref_count > 1 -- writing into it would corrupt another
+        request's cache, so this is a copy-on-write).
         """
         tail = block_table.blocks[-1] if block_table.blocks else None
         if tail is None or tail.is_full or tail.ref_count > 1:
