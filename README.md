@@ -23,11 +23,19 @@ Each chapter has its own directory with code examples and diagrams referenced in
 
 ```
 llm-inference-manning/
+├── src/mini_inference/      # Progressive, cumulative, tested package
+│   └── memory/              # Ch 3: capacity planner, block allocator, prefix cache
 ├── ch01/                    # Inference Is the New Bottleneck : No Code for this
 │   ├── diagrams/
 ├── ch02/                    # A Minimal Inference Stack
 │   ├── code/
 │   └── diagrams/
+├── ch03/                    # KV Cache and Memory
+│   ├── examples/
+│   ├── exercises/
+│   ├── solutions/
+│   └── ch03.ipynb
+└── tests/                   # Cumulative test suite for src/mini_inference
 ```
 
 More chapters will be added as the book progresses.
@@ -44,6 +52,9 @@ Why inference has replaced training as the primary systems bottleneck. Introduce
 **Chapter 2: A Minimal Inference Stack**
 Hands-on chapter. Build a working inference pipeline from scratch using GPT-2: probability foundations, the autoregressive generation loop, temperature sampling, and generation evaluation. Every section includes runnable code and Try It Now exercises.
 
+**Chapter 3: KV Cache and Memory**
+Treats the KV cache as a capacity-planning problem. Covers sizing the cache from model architecture, eliminating allocation waste with PagedAttention, shrinking per-token cost with attention variants (MHA/GQA/MQA/MLA), quantization and offloading, and reusing shared prompt prefixes with hash-based prefix caching.
+
 ---
 
 ## The End-to-End Project
@@ -54,6 +65,7 @@ The book culminates in a progressive inference service built across chapters. St
 |---------|----------------|
 | Ch 1 | Inference is the new Bottleneck |
 | Ch 2 | A Minimal Inference Stack |
+| Ch 3 | KV Cache and Memory (capacity planner, PagedAttention block allocator, prefix cache) |
 
 
 The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
@@ -78,6 +90,14 @@ cd llm-inference-manning
 cd ch02/code
 pip install torch tiktoken litellm python-dotenv matplotlib numpy
 python -c "from generation import demonstrate_temperature_sampling; demonstrate_temperature_sampling()"
+
+# Chapter 3: KV cache capacity planner, PagedAttention, and prefix caching
+cd ../../
+pip install -e .
+python3 -m pytest tests/test_chapter3_memory.py
+python3 ch03/examples/capacity_planner_cli.py --model llama-3-8b --concurrency 32 --context-tokens 4096
+python3 ch03/examples/compare_static_vs_paged.py
+python3 ch03/examples/benchmark_prefix_caching.py
 ```
 
 ---
