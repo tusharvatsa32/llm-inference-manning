@@ -1,4 +1,6 @@
+import importlib.util
 import math
+from pathlib import Path
 
 from mini_inference.memory import (
     Block,
@@ -14,6 +16,15 @@ from mini_inference.memory import (
     estimate_capacity,
     reserved_token_slots,
 )
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_module(path: Path):
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_bytes_per_token_exact_formula():
@@ -222,7 +233,7 @@ def test_capacity_report_token_pool():
     workload = WorkloadProfile(
         current_tokens_per_request=8192, max_tokens_per_request=8192, concurrency=1
     )
-    config = ServingConfig(gpu_memory_gb=80.0, gpu_utilization=0.90)
+    config = ServingConfig(gpu_memory_gib=80.0, gpu_utilization=0.90)
 
     report = estimate_capacity(llama3_8b, workload, config)
 
@@ -234,3 +245,161 @@ def test_capacity_report_token_pool():
     assert 400_000 <= report.token_pool <= 500_000
     # At an 8K active context, roughly 56 concurrent requests fit.
     assert 40 <= report.max_concurrency <= 70
+
+
+def test_estimate_capacity_accepts_measured_overrides():
+    model = ModelProfile(layers=32, kv_heads=8, head_dim=128)
+    workload = WorkloadProfile(
+        current_tokens_per_request=8192, max_tokens_per_request=8192, concurrency=1
+    )
+    config = ServingConfig()
+
+    # A caller with real numbers from the serving stack should be able to
+    # skip the params_b-based first-pass estimate entirely.
+    report = estimate_capacity(
+        model, workload, config, weight_gb=20.0, available_kv_gb=40.0
+    )
+
+    assert report.weight_gb == 20.0
+    assert report.kv_budget_gb == 40.0
+    per_token = bytes_per_token(model, config)
+    assert report.token_pool == int(40.0 * 1024**3 / per_token)
+
+
+def test_reserved_token_slots_rejects_unknown_allocation():
+    workload = WorkloadProfile(
+        current_tokens_per_request=100, max_tokens_per_request=100, concurrency=1
+    )
+    config = ServingConfig(allocation="bogus")
+
+    try:
+        reserved_token_slots(workload, config)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected reserved_token_slots to reject a bad allocation")
+
+
+def test_can_allocate_reflects_free_pool_size():
+    allocator = BlockAllocator(num_blocks=4, block_size=16)
+
+    assert allocator.can_allocate(64) is True  # exactly 4 blocks
+    assert allocator.can_allocate(65) is False  # needs a 5th block
+
+    allocator.allocate()
+    assert allocator.can_allocate(48) is True  # exactly the 3 remaining
+    assert allocator.can_allocate(49) is False
+
+
+def test_allocate_raises_when_pool_exhausted():
+    allocator = BlockAllocator(num_blocks=1, block_size=16)
+    allocator.allocate()
+
+    try:
+        allocator.allocate()
+    except MemoryError:
+        pass
+    else:
+        raise AssertionError("expected MemoryError once the pool is empty")
+
+
+def test_allocate_sequence_does_not_leak_on_partial_failure():
+    allocator = BlockAllocator(num_blocks=2, block_size=16)
+
+    # 3 blocks needed, only 2 exist: must raise before claiming any of them,
+    # not claim 2 and then raise with no table to return them through.
+    try:
+        allocator.allocate_sequence(num_tokens=33)
+    except MemoryError:
+        pass
+    else:
+        raise AssertionError("expected MemoryError for a request that can't fit")
+
+    assert len(allocator.free_blocks) == 2  # nothing claimed, nothing leaked
+
+
+def test_append_token_without_cow_extends_the_same_block():
+    allocator = BlockAllocator(num_blocks=4, block_size=16)
+    table = allocator.allocate_sequence(num_tokens=1)
+    tail = table.blocks[0]
+
+    result = allocator.append_token(table)
+
+    # Tail has room and isn't shared: append_token should just grow it in
+    # place, not allocate a new block.
+    assert result is None
+    assert len(table.blocks) == 1
+    assert tail.num_tokens == 2
+
+
+def test_match_prefix_stops_at_the_first_divergent_block():
+    allocator = BlockAllocator(num_blocks=4, block_size=16)
+    prefix_cache = PrefixCache()
+
+    cached_prefix = list(range(32))  # two blocks
+    table = allocator.allocate_sequence(num_tokens=32)
+    parent_hash = None
+    for i, block in enumerate(table.blocks):
+        chunk = cached_prefix[i * 16 : (i + 1) * 16]
+        parent_hash = prefix_cache.insert_block(chunk, block, parent_hash)
+
+    # A request whose first block matches but second block diverges should
+    # get exactly one matched block back, with everything from there on
+    # treated as uncached -- not a total miss, not a total hit.
+    requested = cached_prefix[:16] + list(range(1000, 1016)) + [9999]
+    matched, remaining = prefix_cache.match_prefix(requested, block_size=16)
+
+    assert matched == [table.blocks[0]]
+    assert remaining == requested[16:]
+
+
+def test_estimate_capacity_clamps_when_weights_exceed_budget():
+    # Llama-3-70B-sized weights on a single 80 GiB GPU at 90% utilization:
+    # 70.6B params x 2 bytes = ~131.5 GiB of weights alone, more than the
+    # ~72 GiB usable -- this must report "doesn't fit" cleanly, not a
+    # negative token pool and negative concurrency.
+    llama3_70b = ModelProfile(layers=80, kv_heads=8, head_dim=128, params_b=70.6)
+    workload = WorkloadProfile(
+        current_tokens_per_request=4096, max_tokens_per_request=4096, concurrency=32
+    )
+    config = ServingConfig(gpu_memory_gib=80.0, gpu_utilization=0.90)
+
+    report = estimate_capacity(llama3_70b, workload, config)
+
+    assert report.kv_budget_gb == 0.0
+    assert report.token_pool == 0
+    assert report.max_concurrency == 0
+
+
+def test_evict_does_not_remove_a_different_blocks_entry():
+    allocator = BlockAllocator(num_blocks=4, block_size=16)
+    prefix_cache = PrefixCache()
+    tokens = list(range(16))
+
+    block_a = allocator.allocate()
+    block_a.num_tokens = 16
+    prefix_cache.insert_block(tokens, block_a)
+
+    # Same content, a second block: insert_block() overwrites the hash's
+    # entry to point at block_b instead of block_a.
+    block_b = allocator.allocate()
+    block_b.num_tokens = 16
+    prefix_cache.insert_block(tokens, block_b)
+    assert prefix_cache.cached_blocks[block_a.hash_key] is block_b
+
+    # Evicting block_a (whose entry was already overwritten) must not
+    # delete block_b's still-live entry out from under it.
+    prefix_cache.evict(block_a)
+    assert block_a.hash_key is None
+    matched, _ = prefix_cache.match_prefix(tokens, block_size=16)
+    assert matched == [block_b]
+
+
+def test_solution_block_manager_run_checks():
+    # The answer-key file has no import path of its own into the test suite,
+    # which is exactly how the two Critical bugs in it shipped unnoticed --
+    # run its own self-check under pytest so a regression here fails CI.
+    solution = _load_module(
+        REPO_ROOT / "ch03" / "solutions" / "solution_block_manager.py"
+    )
+    solution.run_checks()

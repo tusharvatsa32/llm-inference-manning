@@ -57,7 +57,13 @@ class BlockTable:
         self.blocks: list[Block] = []
 
     def append_block(self, block: Block) -> None:
-        """Attach a block this table doesn't already own, becoming a co-owner."""
+        """Attach a block this table doesn't already own, becoming a co-owner.
+
+        Bumps ref_count -- don't use this for a block a PrefixCache match
+        already returned (`PrefixCache.match_prefix()` bumps ref_count
+        itself); extend `.blocks` directly with those instead, or this
+        double-counts the reference.
+        """
         self.blocks.append(block)
         block.ref_count += 1
 
@@ -125,6 +131,16 @@ class BlockAllocator:
         block_table.blocks = []
 
     def allocate_sequence(self, num_tokens: int) -> BlockTable:
+        """Allocate a fresh, private BlockTable for `num_tokens` tokens.
+
+        Checks `can_allocate()` up front: a request that doesn't fit raises
+        before claiming any blocks, rather than claiming some and then
+        raising partway through and leaking them (nothing would hold a
+        reference to a partially-built table on failure).
+        """
+        if not self.can_allocate(num_tokens):
+            raise MemoryError("Out of KV Cache blocks")
+
         num_blocks_needed = math.ceil(num_tokens / self.block_size)
         table = BlockTable(self.block_size)
         remaining = num_tokens

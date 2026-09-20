@@ -37,7 +37,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--concurrency", type=int, default=32)
     parser.add_argument("--context-tokens", type=int, default=8192)
     parser.add_argument("--quantization", choices=sorted(QUANTIZATION_BYTES), default="fp16")
-    parser.add_argument("--gpu-memory-gb", type=float, default=80.0)
+    # Named -gib, not -gb: this value feeds binary (1024**3) GiB math, so an
+    # "80 GB" spec-sheet number is really ~74.5 GiB -- convert before passing
+    # it in if you want the two to match exactly.
+    parser.add_argument("--gpu-memory-gib", type=float, default=80.0)
     parser.add_argument("--gpu-utilization", type=float, default=0.90)
     return parser.parse_args()
 
@@ -51,24 +54,36 @@ def format_report(model_name: str, args: argparse.Namespace) -> str:
     )
     config = ServingConfig(
         kv_dtype_bytes=QUANTIZATION_BYTES[args.quantization],
-        gpu_memory_gb=args.gpu_memory_gb,
+        gpu_memory_gib=args.gpu_memory_gib,
         gpu_utilization=args.gpu_utilization,
     )
 
     report = estimate_capacity(model, workload, config)
+
+    if report.token_pool == 0:
+        usable_gib = args.gpu_memory_gib * args.gpu_utilization
+        return (
+            f"KV Cache Capacity Report ({model_name})\n"
+            f"{'=' * 60}\n"
+            f"Model weights ({report.weight_gb:.1f} GiB) exceed the usable GPU "
+            f"budget ({usable_gib:.1f} GiB) -- this model needs tensor "
+            f"parallelism across multiple GPUs, a lower-precision weight "
+            f"dtype, or a bigger GPU. There is no KV cache budget left to size."
+        )
+
     per_token_bytes = bytes_per_token(model, config)
-    requested_kv_gb = (per_token_bytes * args.context_tokens * args.concurrency) / (1024 ** 3)
-    fits = requested_kv_gb <= report.kv_budget_gb
+    requested_kv_gib = (per_token_bytes * args.context_tokens * args.concurrency) / (1024 ** 3)
+    fits = requested_kv_gib <= report.kv_budget_gb
 
     rows = [
         ("Model", model_name),
         ("Precision", args.quantization.upper()),
-        ("Weight footprint", f"{report.weight_gb:.1f} GB"),
+        ("Weight footprint", f"{report.weight_gb:.1f} GiB"),
         ("Per-token KV cache", f"{per_token_bytes / 1024:.1f} KB"),
-        ("KV budget (after weights)", f"{report.kv_budget_gb:.1f} GB"),
+        ("KV budget (after weights)", f"{report.kv_budget_gb:.1f} GiB"),
         (
             f"Requested KV ({args.concurrency} req x {args.context_tokens} tok)",
-            f"{requested_kv_gb:.1f} GB",
+            f"{requested_kv_gib:.1f} GiB",
         ),
         ("Token pool", f"{report.token_pool:,} tokens"),
         ("Max concurrency @ this context", f"{report.max_concurrency}"),

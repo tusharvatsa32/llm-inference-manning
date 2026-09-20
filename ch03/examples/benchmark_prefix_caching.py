@@ -115,7 +115,7 @@ def main() -> None:
 
         print(f"{i:>8} {len(tail):>6} {naive_tokens:>14} {tokens_computed:>17} {tokens_from_cache:>19}")
 
-    memory_saved_gb = (private_prompt_blocks_avoided * BLOCK_SIZE * per_token_bytes) / (1024 ** 3)
+    memory_saved_gib = (private_prompt_blocks_avoided * BLOCK_SIZE * per_token_bytes) / (1024 ** 3)
     tokens_saved_pct = 100 * (total_tokens_naive - total_tokens_computed_cached) / total_tokens_naive
 
     print()
@@ -125,7 +125,7 @@ def main() -> None:
     print(f"{'Tokens computed, with prefix caching':<38}: {total_tokens_computed_cached:>10}")
     print(f"{'Tokens served from cache':<38}: {total_tokens_from_cache:>10}")
     print(f"{'Prefill work avoided':<38}: {tokens_saved_pct:>9.1f}%")
-    print(f"{'KV cache memory saved by sharing':<38}: {memory_saved_gb:>9.3f} GB "
+    print(f"{'KV cache memory saved by sharing':<38}: {memory_saved_gib:>9.3f} GiB "
           f"({private_prompt_blocks_avoided} private prompt blocks avoided)")
 
 

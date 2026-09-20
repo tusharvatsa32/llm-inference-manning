@@ -32,6 +32,13 @@ class PrefixCache:
     def match_prefix(
         self, token_ids: list[int], block_size: int
     ) -> tuple[list[Block], list[int]]:
+        """Find the longest cached prefix of `token_ids`, in `block_size` chunks.
+
+        Every matched block already has its ref_count bumped by 1 for the
+        caller -- attach the returned blocks straight to a BlockTable's
+        `.blocks` list (`table.blocks.extend(matched)`), not through
+        `BlockTable.append_block()`, which would bump ref_count a second time.
+        """
         matched_blocks: list[Block] = []
         parent_hash: int | None = None
         idx = 0
@@ -64,5 +71,10 @@ class PrefixCache:
 
     def evict(self, block: Block) -> None:
         if block.hash_key is not None:
-            self.cached_blocks.pop(block.hash_key, None)
+            # Identity-checked: if a later insert_block() for the same
+            # content overwrote this hash with a different, still-live
+            # block, evicting `block` must not delete that other block's
+            # entry out from under it.
+            if self.cached_blocks.get(block.hash_key) is block:
+                del self.cached_blocks[block.hash_key]
             block.hash_key = None

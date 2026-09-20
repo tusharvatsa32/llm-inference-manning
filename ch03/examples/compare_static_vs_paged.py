@@ -54,7 +54,7 @@ def main() -> None:
     config = ServingConfig(kv_dtype_bytes=2)
     per_token_bytes = bytes_per_token(model, config)
 
-    def to_gb(slots: int) -> float:
+    def to_gib(slots: int) -> float:
         return (slots * per_token_bytes) / (1024 ** 3)
 
     print(f"Simulated {NUM_REQUESTS} requests, context lengths in "
@@ -69,9 +69,9 @@ def main() -> None:
     print()
     print("Totals across all requests")
     print("-" * 60)
-    print(f"{'Ideal (tokens stored)':<28}: {total_ideal:>8} slots  ({to_gb(total_ideal):.2f} GB)")
-    print(f"{'Static allocation':<28}: {total_static:>8} slots  ({to_gb(total_static):.2f} GB)")
-    print(f"{'Paged allocation (block=16)':<28}: {total_paged:>8} slots  ({to_gb(total_paged):.2f} GB)")
+    print(f"{'Ideal (tokens stored)':<28}: {total_ideal:>8} slots  ({to_gib(total_ideal):.2f} GiB)")
+    print(f"{'Static allocation':<28}: {total_static:>8} slots  ({to_gib(total_static):.2f} GiB)")
+    print(f"{'Paged allocation (block=16)':<28}: {total_paged:>8} slots  ({to_gib(total_paged):.2f} GiB)")
 
     memory_saved_pct = 100 * (total_static - total_paged) / total_static
     static_waste = total_static - total_ideal
@@ -85,9 +85,9 @@ def main() -> None:
 
     print()
     print("Reserved memory, static vs. paged (relative to static total)")
-    print(f"  static : {ascii_bar(total_static, total_static)} {to_gb(total_static):6.2f} GB")
-    print(f"  paged  : {ascii_bar(total_paged, total_static)} {to_gb(total_paged):6.2f} GB")
-    print(f"  ideal  : {ascii_bar(total_ideal, total_static)} {to_gb(total_ideal):6.2f} GB")
+    print(f"  static : {ascii_bar(total_static, total_static)} {to_gib(total_static):6.2f} GiB")
+    print(f"  paged  : {ascii_bar(total_paged, total_static)} {to_gib(total_paged):6.2f} GiB")
+    print(f"  ideal  : {ascii_bar(total_ideal, total_static)} {to_gib(total_ideal):6.2f} GiB")
 
 
 if __name__ == "__main__":

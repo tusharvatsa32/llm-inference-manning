@@ -45,7 +45,7 @@ class ServingConfig:
     block_size: int = 16
     kv_dtype_bytes: int = 2
     weight_dtype_bytes: int = 2
-    gpu_memory_gb: float = 80.0
+    gpu_memory_gib: float = 80.0
     gpu_utilization: float = 0.90
 
 
@@ -101,14 +101,21 @@ def estimate_capacity(
 
     `weight_gb` and `available_kv_gb` let a caller override the first-pass
     parameter-count estimate with a measured value from the serving stack.
+
+    `token_pool == 0` means the model's weights alone don't fit in
+    `config.gpu_memory_gib * config.gpu_utilization` -- this GPU can't serve
+    this model at this precision at all, before a single request arrives.
     """
     if weight_gb is None:
         weight_bytes = model.params_b * 1e9 * config.weight_dtype_bytes
         weight_gb = bytes_to_gib(weight_bytes)
 
     if available_kv_gb is None:
-        usable_gb = config.gpu_memory_gb * config.gpu_utilization
-        available_kv_gb = usable_gb - weight_gb
+        usable_gb = config.gpu_memory_gib * config.gpu_utilization
+        # Clamped at 0: a model whose weights alone exceed the usable budget
+        # doesn't fit on this GPU at all, not "fit a negative number of
+        # tokens" -- see estimate_capacity's docstring for how to read that.
+        available_kv_gb = max(0.0, usable_gb - weight_gb)
 
     per_token_bytes = bytes_per_token(model, config)
     token_pool = int(gib_to_bytes(available_kv_gb) / per_token_bytes)
