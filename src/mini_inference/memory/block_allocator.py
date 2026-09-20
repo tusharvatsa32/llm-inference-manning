@@ -50,17 +50,15 @@ class BlockTable:
         self.blocks.append(block)
         block.ref_count += 1
 
-    def release_all(self):
-        """Decrement ref_count on every tracked block, yielding those that hit zero.
-
-        This is a generator: it must be fully consumed (e.g. `list(...)`) for
-        the table's block list to be cleared.
-        """
+    def release_all(self) -> list[Block]:
+        """Decrement ref_count on every tracked block, returning those that hit zero."""
+        freed = []
         for block in self.blocks:
             block.ref_count -= 1
             if block.ref_count == 0:
-                yield block
+                freed.append(block)
         self.blocks = []
+        return freed
 
     def get_physical_block_ids(self) -> list[int]:
         return [block.block_id for block in self.blocks]
@@ -86,12 +84,41 @@ class BlockAllocator:
         block.ref_count = 1
         return block
 
-    def free(self, block: Block) -> None:
-        # Guarded rather than unconditional so this also serves as the reclaim
-        # step for blocks BlockTable.release_all() already decremented to zero.
+    def free(self, block: Block, prefix_cache=None) -> None:
+        """Release one reference to `block`, reclaiming it once ref_count hits zero.
+
+        Safe to call on a block `BlockTable.release_all()` already decremented
+        to zero (the reclaim step for those blocks) as well as on a live block
+        (the normal single-owner free). Calling it twice on the same already-free
+        block is a no-op rather than a double-free.
+
+        If `block.hash_key` is set, it is registered in some `PrefixCache`, and
+        `prefix_cache` must be passed so the stale entry is evicted before the
+        block is recycled -- otherwise a later request could get a cache "hit"
+        pointing at a block that has since been handed out to someone else. This
+        check runs, and can raise, before anything is mutated, so a caller that
+        catches the error and evicts the block itself can safely call free()
+        again with the exact same arguments.
+        """
+        # free_blocks is the single source of truth for "already free" -- an
+        # identity scan here is O(pool size), which is fine for a teaching-scale
+        # pool and avoids keeping a second collection in sync with it.
+        if any(existing is block for existing in self.free_blocks):
+            return
+
+        would_reach_zero = block.ref_count <= 1
+        if would_reach_zero and block.hash_key is not None and prefix_cache is None:
+            raise ValueError(
+                f"block {block.block_id} is still registered in a PrefixCache "
+                "(hash_key is set) -- call free(block, prefix_cache=...) so the "
+                "stale entry is evicted, or evict it yourself first"
+            )
+
         if block.ref_count > 0:
             block.ref_count -= 1
         if block.ref_count == 0:
+            if block.hash_key is not None:
+                prefix_cache.evict(block)
             block.reset()
             self.free_blocks.append(block)
 

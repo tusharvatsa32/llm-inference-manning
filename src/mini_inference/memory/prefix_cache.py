@@ -65,3 +65,4 @@ class PrefixCache:
     def evict(self, block: Block) -> None:
         if block.hash_key is not None:
             self.cached_blocks.pop(block.hash_key, None)
+            block.hash_key = None

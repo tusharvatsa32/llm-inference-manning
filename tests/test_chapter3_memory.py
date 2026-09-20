@@ -64,12 +64,12 @@ def test_block_table_ref_counting_and_free():
     table_b.append_block(shared_block)
     assert shared_block.ref_count == 2
 
-    released_from_b = list(table_b.release_all())
+    released_from_b = table_b.release_all()
     assert released_from_b == []
     assert shared_block.ref_count == 1
     assert table_b.blocks == []
 
-    released_from_a = list(table_a.release_all())
+    released_from_a = table_a.release_all()
     assert len(released_from_a) == 2
     assert all(block.ref_count == 0 for block in released_from_a)
 
@@ -77,6 +77,73 @@ def test_block_table_ref_counting_and_free():
         allocator.free(block)
 
     assert len(allocator.free_blocks) == free_at_start
+
+
+def test_free_is_safe_against_double_free():
+    allocator = BlockAllocator(num_blocks=2, block_size=16)
+    block = allocator.allocate()
+    assert len(allocator.free_blocks) == 1  # the other block, never allocated
+
+    allocator.free(block)
+    assert len(allocator.free_blocks) == 2
+
+    # Freeing an already-free block must be a no-op, not a second reclaim --
+    # otherwise the same physical block ends up duplicated in free_blocks and
+    # can be handed out to two different owners at once.
+    allocator.free(block)
+    assert len(allocator.free_blocks) == 2
+
+    first = allocator.allocate()
+    second = allocator.allocate()
+    assert first.block_id != second.block_id
+
+
+def test_free_without_prefix_cache_raises_for_a_cached_block():
+    allocator = BlockAllocator(num_blocks=4, block_size=16)
+    prefix_cache = PrefixCache()
+
+    table = allocator.allocate_sequence(num_tokens=16)
+    block = table.blocks[0]
+    prefix_cache.insert_block(list(range(16)), block)
+
+    (freed,) = table.release_all()
+    # Forgetting prefix_cache=... here must fail loudly, not silently corrupt
+    # the cache -- see test_free_evicts_stale_prefix_cache_entry for the fix.
+    try:
+        allocator.free(freed)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected free() to reject a still-cached block")
+
+    # The rejected call must not have mutated anything: the block is still
+    # exactly as it was, so evicting by hand and retrying must now succeed.
+    assert freed.ref_count == 0
+    assert freed not in allocator.free_blocks
+    prefix_cache.evict(freed)
+    allocator.free(freed)
+    assert freed in allocator.free_blocks
+
+
+def test_free_evicts_stale_prefix_cache_entry():
+    allocator = BlockAllocator(num_blocks=4, block_size=16)
+    prefix_cache = PrefixCache()
+
+    table = allocator.allocate_sequence(num_tokens=16)
+    block = table.blocks[0]
+    block_hash = prefix_cache.insert_block(list(range(16)), block)
+    assert block_hash in prefix_cache.cached_blocks
+
+    for freed in table.release_all():
+        allocator.free(freed, prefix_cache=prefix_cache)
+
+    # The freed block must no longer be reachable through the prefix cache --
+    # otherwise a later request could get a "hit" on a block now owned by,
+    # and possibly already overwritten by, an unrelated request.
+    assert block_hash not in prefix_cache.cached_blocks
+    matched, remaining = prefix_cache.match_prefix(list(range(16)), block_size=16)
+    assert matched == []
+    assert remaining == list(range(16))
 
 
 def test_prefix_caching_hit_and_cow():
