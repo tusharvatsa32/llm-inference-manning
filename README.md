@@ -24,11 +24,11 @@ Each chapter has its own directory with code examples and diagrams referenced in
 ```
 llm-inference-manning/
 ├── src/mini_inference/       # The educational inference engine, built progressively across chapters
-├── ch01/                     # Inference Is the New Bottleneck
+├── ch01/                     # Inference as the New Bottleneck
 │   ├── examples/             # Runnable latency, TPOT, and prefill/decode experiments
 │   ├── supplementary/        # KV-cache memory calculator (Section 1.3.2)
 │   └── diagrams/
-├── ch02/                     # A Minimal Inference Stack
+├── ch02/                     # Autoregressive Decoding and Generation Control
 │   ├── code/
 │   └── diagrams/
 └── tests/                    # Tests for the living src/mini_inference package
@@ -46,10 +46,10 @@ More chapters will be added as the book progresses.
 
 ### Part I — Inference as a Systems Discipline
 
-**Chapter 1: Inference Is the New Bottleneck**
+**Chapter 1: Inference as the New Bottleneck**
 Why inference has replaced training as the primary systems bottleneck. Introduces the prefill/decode split, KV cache, and the four interacting constraints (compute, memory capacity, memory bandwidth, scheduling). Defines latency, throughput, and cost as first-class metrics. Readers build a small profiler that measures prefill-to-first-token latency, TPOT, and throughput, then use memory and FLOPs estimates to explain the results. A separate KV-cache calculator requires no model download or GPU.
 
-**Chapter 2: A Minimal Inference Stack**
+**Chapter 2: Autoregressive Decoding and Generation Control**
 Hands-on chapter. Build a working inference pipeline from scratch using GPT-2: probability foundations, the autoregressive generation loop, temperature sampling, and generation evaluation. Every section includes runnable code and Try It Now exercises.
 
 ---
@@ -61,7 +61,7 @@ The book culminates in a progressive inference service built across chapters. St
 | Chapter | What Gets Added |
 |---------|----------------|
 | Ch 1 | Inference profiling and KV-cache memory sizing |
-| Ch 2 | A Minimal Inference Stack |
+| Ch 2 | Autoregressive Decoding and Generation Control |
 
 
 The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
