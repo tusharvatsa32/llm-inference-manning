@@ -9,6 +9,10 @@ chapter1 = [
 	"torch>=2.2",
 	"transformers>=4.45",
 ]
+chapter2 = [
+	"torch>=2.2",
+	"transformers>=4.45",
+]
 test = ["pytest>=8"]
 
 [build-system]

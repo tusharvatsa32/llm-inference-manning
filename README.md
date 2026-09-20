@@ -2,7 +2,7 @@
 
 **A Manning Publications book by Tushar Vatsa, Karthik Suresh and Ishita Verma**
 
-A practitioner book that treats LLM inference as a systems engineering discipline — covering decoding, memory, batching, speculative execution, and inference-time reasoning for teams building production services under latency and cost constraints.
+A practitioner book that treats LLM inference as a systems engineering discipline — covering decoding, memory, batching, serving, distributed execution, and speculative decoding for teams building production services under latency and cost constraints.
 
 ---
 
@@ -19,7 +19,9 @@ A practitioner book that treats LLM inference as a systems engineering disciplin
 
 ## Repository Structure
 
-Each chapter has its own directory with code examples and diagrams referenced in the text.
+The repository has two complementary tracks. Every chapter is an independently
+runnable lab, while `src/mini_inference` is the tested cumulative engine that
+later chapters extend.
 
 ```
 llm-inference-manning/
@@ -29,14 +31,16 @@ llm-inference-manning/
 │   ├── supplementary/        # KV-cache memory calculator (Section 1.3.2)
 │   └── diagrams/
 ├── ch02/                     # Autoregressive Decoding and Generation Control
-│   ├── code/
+│   ├── examples/             # Logits, sampling, and streaming demonstrations
+│   ├── supplementary/        # Beam search and constrained decoding
 │   └── diagrams/
 └── tests/                    # Tests for the living src/mini_inference package
 ```
 
-The chapters build one system rather than carrying independent copies. Reusable code lives in
-`src/mini_inference`, examples import that installed package, and each later chapter extends the
-same continuously tested implementation.
+Chapter examples import the installed package; they never import code from an
+earlier chapter directory. Each chapter README gives the exact setup and run
+order. Reusable behavior enters `src` only when a later chapter needs to call,
+test, or extend it.
 
 More chapters will be added as the book progresses.
 
@@ -50,7 +54,10 @@ More chapters will be added as the book progresses.
 Why inference has replaced training as the primary systems bottleneck. Introduces the prefill/decode split, KV cache, and the four interacting constraints (compute, memory capacity, memory bandwidth, scheduling). Defines latency, throughput, and cost as first-class metrics. Readers build a small profiler that measures prefill-to-first-token latency, TPOT, and throughput, then use memory and FLOPs estimates to explain the results. A separate KV-cache calculator requires no model download or GPU.
 
 **Chapter 2: Autoregressive Decoding and Generation Control**
-Hands-on chapter. Build a working inference pipeline from scratch using GPT-2: probability foundations, the autoregressive generation loop, temperature sampling, and generation evaluation. Every section includes runnable code and Try It Now exercises.
+Build the first working token engine: a cached prefill/decode loop, greedy and
+stochastic sampling, token-level stopping, streamed output events, and explicit
+finish reasons. The required examples use a laptop-friendly 135M-parameter
+model; larger quality experiments are optional.
 
 ---
 
@@ -64,7 +71,9 @@ The book culminates in a progressive inference service built across chapters. St
 | Ch 2 | Autoregressive Decoding and Generation Control |
 
 
-The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
+The final project is a production-oriented teaching system. It makes the core
+mechanisms of modern inference stacks concrete while remaining small enough to
+read and modify.
 
 
 ---
@@ -90,10 +99,9 @@ python3 ch01/supplementary/kv_cache_memory_calculator.py
 python3 -m pip install -e '.[chapter1]'
 python3 ch01/examples/profile_one_request.py
 
-# Chapter 2 example (CPU, no GPU needed)
-cd ch02/code
-python3 -m pip install torch tiktoken litellm python-dotenv matplotlib numpy
-python3 -c "from generation import demonstrate_temperature_sampling; demonstrate_temperature_sampling()"
+# Chapter 2 token engine (downloads the same small model on first run)
+python3 -m pip install -e '.[chapter2]'
+python3 ch02/examples/01_inspect_next_token.py
 ```
 
 ---
