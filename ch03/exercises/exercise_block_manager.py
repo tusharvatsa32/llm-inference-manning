@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Exercise: LRU eviction for BlockAllocator (Chapter 3, Section 3.3).
+"""Exercise (advanced, optional): LRU eviction for BlockAllocator (Chapter 3, Section 3.3).
+
+This one is harder than a typical chapter exercise -- it asks you to reason
+about reference-counting invariants across two collaborating structures
+(the eviction pool and a PrefixCache), not just implement one self-contained
+method. If you're working through this chapter for the first time, it's
+fine to read the solution instead of solving it from scratch; the value is
+in understanding *why* each piece is needed, particularly the aliasing bug
+described below, which is a real and common class of bug in production
+KV-cache allocators.
 
 BlockAllocator.allocate() raises MemoryError the instant the free-block pool is
 empty. But many freed blocks are not truly done: a block just released by a

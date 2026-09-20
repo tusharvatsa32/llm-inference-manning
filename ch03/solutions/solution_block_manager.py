@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Solution: LRU eviction for BlockAllocator (Chapter 3, Section 3.3).
+"""Solution (advanced, optional exercise): LRU eviction for BlockAllocator
+(Chapter 3, Section 3.3).
 
-See ch03/exercises/exercise_block_manager.py for the problem statement.
+See ch03/exercises/exercise_block_manager.py for the problem statement and
+why this one is harder than a typical chapter exercise.
 """
 
 import collections
