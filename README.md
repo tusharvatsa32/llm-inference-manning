@@ -29,6 +29,8 @@ llm-inference-manning/
 ├── ch02/                    # Autoregressive Decoding and Generation Control
 │   ├── code/
 │   └── diagrams/
+├── ch03/                    # KV Cache and Memory
+│   └── code/
 ```
 
 More chapters will be added as the book progresses.
@@ -45,6 +47,9 @@ Why inference has replaced training as the primary systems bottleneck. Introduce
 **Chapter 2: Autoregressive Decoding and Generation Control**
 Hands-on chapter. Build the decoding loop that generates a response one token at a time, then fill in how the next token is chosen: greedy decoding, temperature, top-k, top-p, min-p, locally typical sampling, repetition penalties, beam search, and constrained decoding that forces valid JSON.
 
+**Chapter 3: KV Cache and Memory**
+Why decoding needs a KV cache and how much memory it takes. Build a capacity planner that sizes the cache from a model's config.json, a toy block allocator that shows how PagedAttention removes allocation waste, and a prefix cache. Covers attention variants (MHA, MQA, GQA, sliding window, MLA), KV cache quantization, offloading, chunked prefill, and reading a live vLLM deployment.
+
 ---
 
 ## The End-to-End Project
@@ -55,6 +60,7 @@ The book culminates in a progressive inference service built across chapters. St
 |---------|----------------|
 | Ch 1 | Inference is the new Bottleneck |
 | Ch 2 | Autoregressive Decoding and Generation Control |
+| Ch 3 | KV Cache and Memory |
 
 
 The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
@@ -85,6 +91,11 @@ cd ../..
 cd ch02/code
 pip install -r requirements.txt
 python decoder.py --temperature 0.6 --top-p 0.9
+cd ../..
+
+# Chapter 3 example (no GPU needed)
+cd ch03/code
+python capacity_planner.py
 ```
 
 ---
