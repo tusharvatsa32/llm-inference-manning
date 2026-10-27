@@ -23,8 +23,9 @@ Each chapter has its own directory with code examples and diagrams referenced in
 
 ```
 llm-inference-manning/
-├── ch01/                    # Inference Is the New Bottleneck : No Code for this
-│   ├── diagrams/
+├── ch01/                    # Inference Is the New Bottleneck
+│   ├── code/                # Companion scripts for the chapter's experiments and numbers
+│   └── diagrams/
 ├── ch02/                    # A Minimal Inference Stack
 │   ├── code/
 │   └── diagrams/
@@ -73,6 +74,12 @@ The final system is representative of modern production inference stacks (vLLM, 
 # Clone the repo
 git clone https://github.com/tusharvatsa32/llm-inference-manning.git
 cd llm-inference-manning
+
+# Chapter 1 examples (no GPU needed)
+cd ch01/code
+python kv_cache_math.py
+python cost_breakdown.py
+cd ../..
 
 # Chapter 2 example (CPU, no GPU needed)
 cd ch02/code
