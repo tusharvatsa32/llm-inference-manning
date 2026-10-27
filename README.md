@@ -26,7 +26,7 @@ llm-inference-manning/
 ├── ch01/                    # Inference Is the New Bottleneck
 │   ├── code/                # Companion scripts for the chapter's experiments and numbers
 │   └── diagrams/
-├── ch02/                    # A Minimal Inference Stack
+├── ch02/                    # Autoregressive Decoding and Generation Control
 │   ├── code/
 │   └── diagrams/
 ```
@@ -42,8 +42,8 @@ More chapters will be added as the book progresses.
 **Chapter 1: Inference Is the New Bottleneck**
 Why inference has replaced training as the primary systems bottleneck. Introduces the prefill/decode split, KV cache, and the four interacting constraints (compute, memory capacity, memory bandwidth, scheduling). Defines latency, throughput, and cost as first-class metrics.
 
-**Chapter 2: A Minimal Inference Stack**
-Hands-on chapter. Build a working inference pipeline from scratch using GPT-2: probability foundations, the autoregressive generation loop, temperature sampling, and generation evaluation. Every section includes runnable code and Try It Now exercises.
+**Chapter 2: Autoregressive Decoding and Generation Control**
+Hands-on chapter. Build the decoding loop that generates a response one token at a time, then fill in how the next token is chosen: greedy decoding, temperature, top-k, top-p, min-p, locally typical sampling, repetition penalties, beam search, and constrained decoding that forces valid JSON.
 
 ---
 
@@ -54,7 +54,7 @@ The book culminates in a progressive inference service built across chapters. St
 | Chapter | What Gets Added |
 |---------|----------------|
 | Ch 1 | Inference is the new Bottleneck |
-| Ch 2 | A Minimal Inference Stack |
+| Ch 2 | Autoregressive Decoding and Generation Control |
 
 
 The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
@@ -83,8 +83,8 @@ cd ../..
 
 # Chapter 2 example (CPU, no GPU needed)
 cd ch02/code
-pip install torch tiktoken litellm python-dotenv matplotlib numpy
-python -c "from generation import demonstrate_temperature_sampling; demonstrate_temperature_sampling()"
+pip install -r requirements.txt
+python decoder.py --temperature 0.6 --top-p 0.9
 ```
 
 ---
