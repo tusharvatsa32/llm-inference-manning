@@ -31,6 +31,8 @@ llm-inference-manning/
 │   └── diagrams/
 ├── ch03/                    # KV Cache and Memory
 │   └── code/
+├── ch04/                    # Schedulers and Batching
+│   └── code/
 ```
 
 More chapters will be added as the book progresses.
@@ -50,6 +52,9 @@ Hands-on chapter. Build the decoding loop that generates a response one token at
 **Chapter 3: KV Cache and Memory**
 Why decoding needs a KV cache and how much memory it takes. Build a capacity planner that sizes the cache from a model's config.json, a toy block allocator that shows how PagedAttention removes allocation waste, and a prefix cache. Covers attention variants (MHA, MQA, GQA, sliding window, MLA), KV cache quantization, offloading, chunked prefill, and reading a live vLLM deployment.
 
+**Chapter 4: Schedulers and Batching**
+Build the scheduler that decides what runs on every forward pass. Compare static and continuous batching, admit requests against the KV cache budget, preempt when memory runs out, and split each pass between new prompts and streaming replies with chunked prefill. Judge each policy by TTFT, TPOT, throughput, and goodput.
+
 ---
 
 ## The End-to-End Project
@@ -61,6 +66,7 @@ The book culminates in a progressive inference service built across chapters. St
 | Ch 1 | Inference is the new Bottleneck |
 | Ch 2 | Autoregressive Decoding and Generation Control |
 | Ch 3 | KV Cache and Memory |
+| Ch 4 | Schedulers and Batching |
 
 
 The final system is representative of modern production inference stacks (vLLM, SGLang) — not a toy, but a real system the reader can extend.
@@ -96,6 +102,11 @@ cd ../..
 # Chapter 3 example (no GPU needed)
 cd ch03/code
 python capacity_planner.py
+cd ../..
+
+# Chapter 4 example (no GPU needed)
+cd ch04/code
+python static_vs_continuous.py
 ```
 
 ---
